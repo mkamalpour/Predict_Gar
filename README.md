@@ -1,136 +1,62 @@
-# ITPNews Price Intelligence v13
+# PredictGar
 
-Gradio app for Iranian livestock/feed commodity price forecasting. Fetches live data from ITPNews, enriches with macro indicators (USD/IRR, gold, CPI), trains ML models, blends with statistical methods, and forecasts with confidence intervals.
+A local forecasting workbench for Iranian livestock and feed prices. Explore historical series, compare regression models, run walk-forward backtests, and export forecasts through a six-tab Gradio interface.
 
-## Quick Start
+## Run locally
 
-```
-pip install gradio scikit-learn pandas numpy requests beautifulsoup4 plotly scipy jdatetime
-pip install xgboost lightgbm joblib   # optional
-python app.py                         # opens at http://127.0.0.1:7861
-```
+Use **Python 3.13** (tested with 3.13.5) and the tested dependency versions in `requirements.txt`.
 
-## Architecture
-
-Three files with strict import isolation:
-
-| File | Responsibility | Imports |
-|---|---|---|
-| `data_pipeline.py` | Web scraping, caching, preprocessing, feature engineering, detrending | requests, bs4, jdatetime, pandas, numpy |
-| `model_pipeline.py` | ML training, forecasting, hybrid blending, backtesting, reports | sklearn, xgboost, lightgbm, plotly, scipy, pandas, numpy |
-| `app.py` | Gradio UI (5 tabs) | gradio, plotly + both pipelines |
-
-## Prediction Pipeline (end-to-end)
-
-```
-ITPNews AJAX API
-     |
-     v
-[1] FETCH & CACHE
-    Fetcher.discover_products() -> {name: id}
-    Fetcher.fetch_chart(pid) -> DataFrame
-    Cache stores only date + price (incremental updates)
-     |
-     v
-[2] PREPROCESS
-    preprocess(): ffill().bfill().interpolate() (no row loss)
-    -> IQR clip outliers -> add is_holiday (Thu/Fri + 10 Iranian solar holidays)
-     |
-     v
-[3] ENRICH (per product profile)
-    merge_external_features(): USD/IRR, gold, CPI via merge_asof
-    fetch_related_prices(): feed prices (corn, soy, barley, wheat)
-    Smart External Select: tests each feature, keeps only MAE-improving ones (>5%)
-     |
-     v
-[4] DETREND (4 branches)
-    linear/quad: target - polyfit(trend)
-    smooth_diff: rolling(7).mean().diff()
-    diff: target.diff()
-    none: pass-through
-     |
-     v
-[5] FEATURE ENGINEERING (zero data leakage)
-    All features shift(1):
-    - Lags: lag_1, lag_7, lag_14, lag_30
-    - Rolling: ma_7/14/30, std_7/14/30
-    - Momentum: roc, position, cv, oscillator
-    - Seasonal: month/dow sin/cos, is_holiday
-    - Cross-product: ratio, margin, corr with other products
-    - External: ext_usd_irr_free, ext_gold_price, ext_cpi_inflation (+ rolling)
-     |
-     v
-[6] TRAIN (single canonical split)
-    compute_split_date() -> 80/20 train/test by date
-    StandardScaler on features (fit train only)
-    Target standardized: (y - mean) / std
-    Models: Ridge, Lasso, ElasticNet, Random Forest (+ optional XGBoost, LightGBM)
-    Filter: R-squared > 0, MAE < naive baseline
-    Optional: Voting/Stacking ensemble
-     |
-     v
-[7] FORECAST (recursive)
-    iterative_forecast(): for each future day:
-    - Build lag features from previous predictions
-    - model.predict() -> detrended forecast
-    - Undetrend (cumsum for diff, +trend for linear)
-    - Add AR(1) deterministic texture noise
-    - CI = sqrt(horizon) * residual quantiles
-     |
-     v
-[8] HYBRID BLEND (SmartHybridPredictor)
-    Evaluate 6 simple methods on walk-forward window:
-    MA(7), MA(14), MA(30), Holt, LinearTrend, Theta
-    Blend: ML weight = max(30%, 1 - simple/ML ratio)
-    CI shifts with blended forecast
-     |
-     v
-[9] OUTPUT
-    Status with R-squared, MAE, model name
-    Interactive Plotly chart with confidence bands
-    Data table with date/forecast/lower/upper
-    CSV download, HTML report generation
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python app.py
 ```
 
-## App Tabs
+Open http://127.0.0.1:7861. The app binds to loopback and does not create a public sharing link.
 
-| Tab | Purpose |
-|---|---|
-| Quick Predict | One-click: fetch -> train -> forecast. Hybrid blending, smart external feature selection |
-| Data & Charts | Browse products, fetch/upload data, preview, history chart |
-| Training | Customize models/features, see comparison plot, feature importance (own vs external), save |
-| Forecast | Generate predictions from trained model with anomaly detection |
-| Backtest | Walk-forward validation (n folds), actual vs predicted plots |
+## Workflows
 
-## Key Behaviors
+- **Quick Predict:** fetch or reuse real cached prices, train candidates, and generate a forecast.
+- **Data & Charts:** inspect product history or upload a CSV with `date` and `price` columns. Uploaded data is used by training; a failed download never substitutes synthetic prices.
+- **Training:** choose lags, windows, detrending, models, feature selection, and voting ensembles. Save complete model packages locally.
+- **Forecast:** forecast from the trained model and its matching history, with optional statistical blending and CSV export.
+- **Backtest:** evaluate successive historical forecast windows without training on those future observations.
+- **Analyze:** inspect relationships with available macroeconomic and related-product series.
 
-- **Smart External Select**: Tests each macro feature independently. Only keeps those that reduce MAE by >5%. If none help, falls back to price-only model.
-- **Hybrid Blending**: Compares ML against 6 simple methods. Blends with dynamic weights (ML always >=30%). If ML fails, uses best simple method.
-- **R-squared Filter**: Models with R-squared <= 0 are automatically excluded. Only valid models compete for best.
-- **Confidence Intervals**: Derived from detrended residuals, shifted with forecast, textured with deterministic AR(1) noise.
-- **Anomaly Detection**: Step-move detection flags regime changes in forecast vs actual.
+Frequency means daily (`D`), completed Sunday-ending weeks (`W`), or completed calendar months (`M`). Horizons, lags, and windows are measured in those periods. Missing dates carry forward the last observed price. The latest incomplete weekly/monthly period is excluded.
 
-## File Structure
+## Forecasting and evaluation
 
+Features use past observations. Missing history is never backfilled from the future. Feature imputation and scaling are fitted on training rows, and target scaling stays inside the estimator so saved-model predictions retain their units. Log detrending is inverted back to price units. Final future forecasts refit the selected estimator on available history and do not add cosmetic random noise.
+
+The chronological validation segment is used for model comparison. Optional external-feature selection uses an inner training split. Reported comparison scores are **validation results**, not an untouched final test. Use the separate walk-forward backtest to assess recursive, multi-period performance. One-step validation and multi-period backtest errors are not directly interchangeable.
+
+Forecast ranges are residual-based estimates with square-root horizon widening, not calibrated guarantees. Hybrid blending is a heuristic using historical errors; it does not guarantee improvement. Macro variables are carried forward for future periods, not independently forecast. Cached or forward-filled prices may be stale. Inspect source dates and compare against a last-price baseline.
+
+Ridge, Lasso, ElasticNet, Random Forest, Gradient Boosting, and voting are supported. XGBoost and LightGBM are optional, separately installed, and outside the tested base environment. Ordinary K-fold stacking is disabled because it is unsuitable for this temporal workflow.
+
+## Data and model storage
+
+Live sources are ITPNews and TGJU; availability and upstream formats can change. Data access uses timeouts and local caches. No API key is required by the current source adapters. Uploaded CSVs are limited to 50 MB.
+
+`data/` contains local product caches, external series, saved models, and forecast exports. `report/` contains your existing reports. Both are excluded from new commits and preserved locally; data already published remains in older Git history. App startup does not delete model files.
+
+Only load model packages you trust: joblib/pickle can execute code. New packages include forecasting metadata and dependency versions; legacy incomplete packages require retraining. Matching versions are required for import.
+
+## Source layout
+
+- `app.py`: Gradio interface and workspace workflows
+- `data_pipeline.py`: source adapters, caching, temporal preprocessing, and features
+- `model_pipeline.py`: training, forecasting, backtests, and persistence
+- `tests/`: synthetic regression coverage without live market requests
+
+## Checks
+
+```powershell
+python -m pip install pytest==9.1.1
+python -m pytest tests -q
+python -m pip check
 ```
-data_pipeline.py      ~1189 lines
-model_pipeline.py     ~1474 lines
-app.py                ~1244 lines
-system_prompt.md      specification
-README.md             this file
-data/cache/           cached price CSVs
-data/external/        external data cache (USD, gold, CPI)
-data/models/          saved trained models (.joblib/.pkl)
-data/forecasts/       exported forecast CSVs
-test/
-  test_full_system.py   116 unit tests
-  debug_test.py         end-to-end pipeline test
-  test_data_pipeline.py basic data pipeline test
-```
 
-## Tests
-
-```
-python test/test_full_system.py    # 116 tests, all public functions
-python test/debug_test.py          # live pipeline integration test
-```
+Tests cover future-data independence, price scaling, calendar alignment, log inversion, saved models, backtesting, and unavailable-source errors. The supported interface targets Gradio 6; see its [official migration guide](https://gradio.app/guides/gradio-6-migration-guide) for framework changes.
