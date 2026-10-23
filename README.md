@@ -65,3 +65,5 @@ Tests cover future-data independence, price scaling, calendar alignment, log inv
 Current lightweight check (Windows, existing Conda base / Python 3.13.5): **15 passed**. No dependency installs, model downloads, live publishing, or heavy datasets were used.
 
 Browser verification covered local startup, all six workflow tabs and CSV import in existing Gradio 5.49.1. Some accessibility findings remain inside Gradio 5 table and plot components (nested controls and ARIA structure); full screen-reader conformance is not claimed. Help-text contrast was improved without hiding those findings.
+
+No license file is included.
