@@ -1,6 +1,7 @@
 """PredictGar: local commodity forecasting interface and workspace callbacks."""
 
 import os, re, unicodedata
+import inspect
 from datetime import datetime
 import numpy as np
 import pandas as pd
@@ -1787,7 +1788,7 @@ def create_app():
                 restore_saved,
                 inputs=[saved_package, trusted_package],
                 outputs=[model_state, model_selector, target, saved_status],
-                api_visibility="private",
+                **({"api_visibility": "private"} if "api_visibility" in inspect.signature(saved_restore.click).parameters else {"api_name": False}),
             )
 
             def forecast_fn(

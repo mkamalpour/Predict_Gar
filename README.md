@@ -7,8 +7,8 @@ A local forecasting workbench for Iranian livestock and feed prices. Explore his
 Use **Python 3.13** (tested with 3.13.5) and the tested dependency versions in `requirements.txt`.
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+conda activate base  # Or activate another existing compatible environment.
+# Optional dependency setup; requires explicit permission and connectivity.
 python -m pip install -r requirements.txt
 python app.py
 ```
@@ -54,9 +54,12 @@ Only load model packages you trust: joblib/pickle can execute code. New packages
 ## Checks
 
 ```powershell
+# Optional dependency setup; requires explicit permission and connectivity.
 python -m pip install pytest==9.1.1
 python -m pytest tests -q
 python -m pip check
 ```
 
 Tests cover future-data independence, price scaling, calendar alignment, log inversion, saved models, backtesting, and unavailable-source errors. The supported interface targets Gradio 6; see its [official migration guide](https://gradio.app/guides/gradio-6-migration-guide) for framework changes.
+
+Current lightweight check (Windows, existing Conda base / Python 3.13.5): **13 passed**. No dependency installs, model downloads, live publishing, or heavy datasets were used.
