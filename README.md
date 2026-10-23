@@ -26,7 +26,7 @@ Open http://127.0.0.1:7861. Startup uses the cached or built-in product catalog 
 
 Frequency means daily (`D`), completed Sunday-ending weeks (`W`), or completed calendar months (`M`). Horizons, lags, and windows are measured in those periods. Missing dates carry forward the last observed price. The latest incomplete weekly/monthly period is excluded.
 
-Tables use a readable, keyboard-scrollable view by default. **Table display ? Use interactive tables** restores sortable grids. Readable previews show at most 200 rows; interactive grids and available CSV downloads retain the full results. Switching views preserves the dataset.
+Tables use a readable, keyboard-scrollable view by default. **Table display > Use interactive tables** restores sortable grids. Readable previews show at most 200 rows; interactive grids and available CSV downloads retain the full results. Switching views preserves the dataset.
 
 ## Forecasting and evaluation
 
