@@ -2,6 +2,7 @@
 
 import os, re, unicodedata
 import inspect
+from html import escape
 from datetime import datetime
 import numpy as np
 import pandas as pd
@@ -125,6 +126,13 @@ textarea, input { unicode-bidi: plaintext; }
 .gradio-container .plot-container { min-height: 220px; }
 .gradio-container .chatbot.md p, .gradio-container footer a, .gradio-container footer button { color: #475e66 !important; }
 .gradio-container .tabitem { padding-top: 18px; }
+.plain-table-scroll { max-height: 360px; overflow: auto; background: #fff; color: #173340; border: 1px solid #cbd5d7; border-radius: 6px; }
+.plain-table-scroll:focus-visible { outline: 3px solid #16817b; outline-offset: 3px; }
+.plain-results { width: 100%; border-collapse: collapse; font-size: 13px; }
+.plain-results caption { text-align: left; padding: 12px; font-weight: 650; color: #173340; }
+.plain-results th { background: #edf4f2; color: #294956; text-align: left; position: sticky; top: 0; }
+.plain-results th, .plain-results td { padding: 9px 12px; border-bottom: 1px solid #dce4e3; white-space: nowrap; }
+.plain-table-note { color: #475e66; font-size: 12px; }
 @media(max-width: 600px) { .gradio-container { padding: 12px !important; } .pg-header { padding-top: 18px; } .pg-meta { line-height: 1.8; letter-spacing: .07em; } .tab-nav button { padding: 9px 11px !important; } }
 @media(prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 """
@@ -164,6 +172,30 @@ def launch_app(app, **overrides):
     return app.launch(**options)
 
 
+def _table_html(value, label, max_rows=200):
+    """Escaped, bounded semantic table; the original grid retains all rows."""
+    title = escape(str(label))
+    if value is None:
+        return f"<p><strong>{title}</strong>: No results yet. Run this workflow to populate the table.</p>"
+    if isinstance(value, dict):
+        value = pd.DataFrame(value.get("data", []), columns=value.get("headers"))
+    frame = value if isinstance(value, pd.DataFrame) else pd.DataFrame(value)
+    if frame.empty:
+        return f"<p><strong>{title}</strong>: No results yet. Run this workflow to populate the table.</p>"
+    view = frame.head(max_rows)
+    table = view.to_html(index=False, border=0, escape=True, na_rep="Not available", classes="plain-results")
+    table = table.replace("<thead>", f"<caption>{title}</caption><thead>", 1)
+    note = (f"Showing the first {len(view)} of {len(frame)} rows. Use the interactive table or available CSV export for all rows."
+            if len(frame) > max_rows else f"{len(frame)} rows.")
+    return (f'<div class="plain-table-scroll" role="region" tabindex="0" aria-label="{title} table">'
+            + table + f'</div><p class="plain-table-note">{note}</p>')
+
+
+def _private_event_options(method):
+    return ({"api_visibility": "private"} if "api_visibility" in inspect.signature(method).parameters
+            else {"api_name": False})
+
+
 def create_app():
 
     fetcher = Fetcher()
@@ -191,7 +223,19 @@ def create_app():
     if LGBM_AVAILABLE:
         models_available.append("LightGBM")
 
-    # External features labels for UI
+    # Retain sortable grids as an option, with readable semantic tables by default.
+    result_tables = []
+    def result_table(**kwargs):
+        label = kwargs.get("label", "Results")
+        initial = kwargs.get("value")
+        with gr.Group():
+            readable = gr.HTML(value=_table_html(initial, label))
+            grid = gr.Dataframe(**kwargs, visible=False)
+        def render_table(value):
+            return _table_html(value, label)
+        grid.change(render_table, grid, readable, queue=False, **_private_event_options(grid.change))
+        result_tables.append((grid, readable))
+        return grid
 
     with gr.Blocks(
         title="PredictGar | Commodity forecasting", analytics_enabled=False,
@@ -215,6 +259,12 @@ def create_app():
         with gr.Accordion("Start here: choose your workflow", open=False):
             gr.Markdown(
                 "**Quick Predict** fetches a product's history and compares available models. For your own CSV,\nopen **Data & Charts**, upload `date` and `price` columns, then use **Training** and **Forecast**.\n\n**Backtest** evaluates historical forecasts. **Analyze** explores associations with external factors;\ncorrelation does not establish causation. D = daily, W = weekly, M = monthly. Horizons,\nlags, and rolling windows count periods at the selected frequency.\n\nForecasts and estimated ranges are model outputs, not guaranteed prices. Review data quality,\nvalidation errors, and historical performance before using a result."
+            )
+
+        with gr.Accordion("Table display", open=False):
+            interactive_tables = gr.Checkbox(
+                value=False, label="Use interactive tables",
+                info="Default tables use standard readable HTML. Enable sortable grids for large results; CSV exports remain available.",
             )
 
         # STATE
@@ -325,7 +375,7 @@ def create_app():
                         elem_classes=["alert-box"],
                         info="Flags unusual prediction errors",
                     )
-                    qp_metrics = gr.Dataframe(
+                    qp_metrics = result_table(
                         interactive=False,
                         label="Validation performance",
                         max_height=180,
@@ -333,7 +383,7 @@ def create_app():
 
             qp_chart = gr.Plot(label="Forecast Chart")
             with gr.Row():
-                qp_table = gr.Dataframe(
+                qp_table = result_table(
                     interactive=False, label="Forecast Values", max_height=200
                 )
                 qp_download = gr.File(interactive=False, label="Download CSV")
@@ -598,7 +648,7 @@ def create_app():
                     label="Status",
                     value=f"✓ {len(initial_products)} products loaded from {initial_source}",
                 )
-                products_table = gr.Dataframe(
+                products_table = result_table(
                     interactive=False,
                     value=pd.DataFrame(
                         list(initial_products.items()), columns=["Product", "ID"]
@@ -651,7 +701,7 @@ def create_app():
                 dataset_info = gr.Textbox(
                     interactive=False, label="Dataset Summary", lines=4
                 )
-                preview = gr.Dataframe(
+                preview = result_table(
                     interactive=False, label="Full Dataset", wrap=True
                 )
                 history_chart = gr.Plot(label="Historical Price Chart")
@@ -1054,7 +1104,7 @@ def create_app():
                 comparison_plot = gr.Plot(label="Model Comparison", scale=2)
                 feature_plot = gr.Plot(label="Feature Importance", scale=1)
 
-            comparison_table = gr.Dataframe(
+            comparison_table = result_table(
                 interactive=False, label="Validation model ranking", max_height=250
             )
 
@@ -1732,7 +1782,7 @@ def create_app():
             )
             forecast_chart = gr.Plot(label="Forecast Chart")
             with gr.Row():
-                forecast_table = gr.Dataframe(
+                forecast_table = result_table(
                     interactive=False, label="Forecast Values"
                 )
                 download_btn = gr.File(interactive=False, label="Download CSV")
@@ -2179,11 +2229,11 @@ def create_app():
             with gr.Row():
                 bt_actual_vs_pred = gr.Plot(label="Actual vs Predicted")
                 bt_errors = gr.Plot(label="Prediction Errors")
-            bt_metrics = gr.Dataframe(interactive=False, label="Summary Metrics")
+            bt_metrics = result_table(interactive=False, label="Summary Metrics")
             gr.Markdown(
                 "Estimated ranges are not calibrated guarantees. Compare forecast errors across historical folds."
             )
-            bt_details = gr.Dataframe(
+            bt_details = result_table(
                 interactive=False, label="Backtest fold results", max_height=250
             )
 
@@ -2466,7 +2516,7 @@ def create_app():
                     an_overlay = gr.Plot(label="Price")
 
                 with gr.Tab("Correlations"):
-                    an_corr_table = gr.Dataframe(
+                    an_corr_table = result_table(
                         interactive=False,
                         label="Correlation Table",
                         headers=[
@@ -2888,6 +2938,17 @@ def create_app():
             fn=sync_dropdowns,
             inputs=[target, products_state],
             outputs=[target, extras, qp_product, current_product_state],
+        )
+
+        def switch_table_display(interactive):
+            updates = []
+            for grid, readable in result_tables:
+                updates.extend([gr.update(visible=interactive), gr.update(visible=not interactive)])
+            return updates
+        interactive_tables.change(
+            switch_table_display, interactive_tables,
+            [component for pair in result_tables for component in pair],
+            queue=False, **_private_event_options(interactive_tables.change),
         )
 
     return demo

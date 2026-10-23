@@ -17,12 +17,23 @@ import jdatetime
 import numpy as np
 import pandas as pd
 import requests
-from bs4 import BeautifulSoup
 
 
 logger = logging.getLogger("itpnews.data_pipeline")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
+
+
+def _html_parser():
+    """HTML discovery is optional; offline CSV analysis must not depend on it."""
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError as exc:
+        raise RuntimeError(
+            "Live product discovery needs beautifulsoup4 in the active environment. "
+            "Uploaded CSVs and the built-in product catalog remain available."
+        ) from exc
+    return BeautifulSoup
 
 
 # 1. UTILITIES
@@ -464,10 +475,11 @@ class Fetcher:
         if self._csrf:
             return self._csrf
         try:
+            parser = _html_parser()
             _polite_wait()
             resp = self.session.get(LIST_URL, timeout=15)
             resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, "html.parser")
+            soup = parser(resp.text, "html.parser")
             tag = soup.find("meta", {"name": "csrf-token"})
             if tag and tag.get("content"):
                 self._csrf = tag["content"]
@@ -508,10 +520,11 @@ class Fetcher:
         if not allow_network:
             return dict(EMERGENCY_FALLBACK), "built-in catalog (refresh to check source)"
         try:
+            parser = _html_parser()
             _polite_wait()
             resp = self.session.get(LIST_URL, timeout=30)
             resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, "html.parser")
+            soup = parser(resp.text, "html.parser")
             products = {}
             select = soup.find("select", attrs={"name": "p_id"})
             if select:
@@ -530,7 +543,7 @@ class Fetcher:
         if cached:
             return cached, "cache"
 
-        return dict(EMERGENCY_FALLBACK), "fallback"
+        return dict(EMERGENCY_FALLBACK), "built-in catalog (live discovery unavailable; check Activity)"
 
     def _save_products_cache(self, products):
         try:

@@ -269,3 +269,45 @@ def test_launch_options_match_installed_gradio(monkeypatch):
     styling = app._presentation_options(app.gr.Blocks)
     assert "css" in captured or "css" in styling
     ui.close()
+
+
+def test_missing_html_parser_preserves_offline_catalog_without_network(monkeypatch):
+    import builtins
+    original_import = builtins.__import__
+    def import_without_html(name, *args, **kwargs):
+        if name == "bs4":
+            raise ImportError("HTML parser intentionally unavailable")
+        return original_import(name, *args, **kwargs)
+    monkeypatch.setattr(builtins, "__import__", import_without_html)
+    fetcher = data.Fetcher()
+    monkeypatch.setattr(fetcher, "_load_products_cache", lambda: None)
+    def no_network(*args, **kwargs):
+        raise AssertionError("Missing optional parser must be detected before fetching")
+    monkeypatch.setattr(fetcher.session, "get", no_network)
+    catalog, source = fetcher.discover_products(force=True)
+    assert catalog == data.EMERGENCY_FALLBACK
+    assert "live discovery unavailable" in source
+    assert fetcher._get_csrf() is None
+    with pytest.raises(RuntimeError, match="Uploaded CSVs"):
+        data._html_parser()
+
+
+def test_readable_table_escapes_uploaded_content_and_preserves_source():
+    import app
+    frame = pd.DataFrame({"<script>column</script>": ["<img src=x onerror=alert(1)>", "plain"]})
+    before = frame.copy(deep=True)
+    result = app._table_html(frame, "<b>Results</b>")
+    assert "<caption>&lt;b&gt;Results&lt;/b&gt;</caption>" in result
+    assert "<script>" not in result and "<img" not in result
+    assert "&lt;script&gt;" in result and "&lt;img" in result
+    assert '<div class="plain-table-scroll" role="region" tabindex="0"' in result
+    pd.testing.assert_frame_equal(frame, before)
+
+
+def test_readable_table_bounds_large_results_and_explains_full_data_access():
+    import app
+    result = app._table_html(pd.DataFrame({"row": range(1000)}), "Rows")
+    assert "first 200 of 1000" in result
+    assert result.count("<td>") == 200
+    assert "interactive table" in result and "CSV export" in result
+    assert "<table" not in app._table_html(pd.DataFrame(), "Empty results")

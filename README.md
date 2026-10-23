@@ -4,7 +4,7 @@ A local forecasting workbench for Iranian livestock and feed prices. Explore his
 
 ## Run locally
 
-Use **Python 3.13** (tested with 3.13.5) and the tested dependency versions in `requirements.txt`.
+Verified existing environments: Python 3.13.5 / Gradio 5.49.1 and Python 3.10.19 / Gradio 6.14.0. Use a compatible existing environment; `requirements.txt` records the base dependency versions. BeautifulSoup is needed only for live HTML discovery, not CSV workflows or the offline product catalog.
 
 ```powershell
 conda activate base  # Or activate another existing compatible environment.
@@ -25,6 +25,8 @@ Open http://127.0.0.1:7861. Startup uses the cached or built-in product catalog 
 - **Analyze:** inspect relationships with available macroeconomic and related-product series.
 
 Frequency means daily (`D`), completed Sunday-ending weeks (`W`), or completed calendar months (`M`). Horizons, lags, and windows are measured in those periods. Missing dates carry forward the last observed price. The latest incomplete weekly/monthly period is excluded.
+
+Tables use a readable, keyboard-scrollable view by default. **Table display ? Use interactive tables** restores sortable grids. Readable previews show at most 200 rows; interactive grids and available CSV downloads retain the full results. Switching views preserves the dataset.
 
 ## Forecasting and evaluation
 
@@ -62,8 +64,8 @@ python -m pip check
 
 Tests cover future-data independence, price scaling, calendar alignment, log inversion, saved models, backtesting, and unavailable-source errors. The launcher supports the installed Gradio 5 and Gradio 6 styling APIs; see its [official migration guide](https://gradio.app/guides/gradio-6-migration-guide) for framework changes.
 
-Current lightweight check (Windows, existing Conda base / Python 3.13.5): **15 passed**. No dependency installs, model downloads, live publishing, or heavy datasets were used.
+Current lightweight check (Windows): **18 passed** in each existing environment above. Tests include CSV upload, training, forecast and model restore, offline operation without BeautifulSoup, escaped table content, and bounded previews. No dependency installs, model downloads, live publishing, or heavy datasets were used.
 
-Browser verification covered local startup, all six workflow tabs and CSV import in existing Gradio 5.49.1. Some accessibility findings remain inside Gradio 5 table and plot components (nested controls and ARIA structure); full screen-reader conformance is not claimed. Help-text contrast was improved without hiding those findings.
+Browser verification covered CSV import, all six tabs, table switching with retained data, and a 390-pixel layout. Default readable tables avoid the native grid's nested-control findings. Gradio 6 still reports accessibility findings in hidden tab scaffolding and empty plot placeholders; full screen-reader conformance is not claimed. Live market endpoints were not exercised.
 
 No license file is included.
