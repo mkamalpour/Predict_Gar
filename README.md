@@ -13,7 +13,7 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-Open http://127.0.0.1:7861. The app binds to loopback and does not create a public sharing link.
+Open http://127.0.0.1:7861. Startup uses the cached or built-in product catalog without network requests; **Refresh product list** explicitly checks the source. Catalog names are not price observations. The app binds to loopback and does not create a public sharing link.
 
 ## Workflows
 
@@ -60,6 +60,8 @@ python -m pytest tests -q
 python -m pip check
 ```
 
-Tests cover future-data independence, price scaling, calendar alignment, log inversion, saved models, backtesting, and unavailable-source errors. The supported interface targets Gradio 6; see its [official migration guide](https://gradio.app/guides/gradio-6-migration-guide) for framework changes.
+Tests cover future-data independence, price scaling, calendar alignment, log inversion, saved models, backtesting, and unavailable-source errors. The launcher supports the installed Gradio 5 and Gradio 6 styling APIs; see its [official migration guide](https://gradio.app/guides/gradio-6-migration-guide) for framework changes.
 
-Current lightweight check (Windows, existing Conda base / Python 3.13.5): **13 passed**. No dependency installs, model downloads, live publishing, or heavy datasets were used.
+Current lightweight check (Windows, existing Conda base / Python 3.13.5): **15 passed**. No dependency installs, model downloads, live publishing, or heavy datasets were used.
+
+Browser verification covered local startup, all six workflow tabs and CSV import in existing Gradio 5.49.1. Some accessibility findings remain inside Gradio 5 table and plot components (nested controls and ARIA structure); full screen-reader conformance is not claimed. Help-text contrast was improved without hiding those findings.

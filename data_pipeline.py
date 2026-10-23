@@ -501,10 +501,12 @@ class Fetcher:
                 time.sleep(1.5 * (attempt + 1))
         return None
 
-    def discover_products(self, force=False):
+    def discover_products(self, force=False, *, allow_network=True):
         cached = self._load_products_cache()
-        if cached and not force:
+        if cached and (not force or not allow_network):
             return cached, "cache"
+        if not allow_network:
+            return dict(EMERGENCY_FALLBACK), "built-in catalog (refresh to check source)"
         try:
             _polite_wait()
             resp = self.session.get(LIST_URL, timeout=30)

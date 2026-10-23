@@ -235,3 +235,37 @@ def test_gradio_upload_train_forecast_and_restore(tmp_path, monkeypatch):
     )
     assert len(result[3]) == 5, result[0]
     ui.close()
+
+
+def test_catalog_startup_is_offline_and_refresh_is_explicit(monkeypatch):
+    fetcher = data.Fetcher()
+    monkeypatch.setattr(fetcher, "_load_products_cache", lambda: None)
+    def no_network(*args, **kwargs):
+        raise AssertionError("Startup must not make market requests")
+    monkeypatch.setattr(fetcher.session, "get", no_network)
+    catalog, source = fetcher.discover_products(allow_network=False)
+    assert catalog == data.EMERGENCY_FALLBACK
+    assert "built-in catalog" in source
+    monkeypatch.setattr(fetcher, "_load_products_cache", lambda: {"cached product": 1})
+    assert fetcher.discover_products(allow_network=False) == ({"cached product": 1}, "cache")
+
+
+def test_launch_options_match_installed_gradio(monkeypatch):
+    import app
+    import functools
+    import inspect
+    monkeypatch.setattr(app.Fetcher, "discover_products", lambda *a, **k: ({"fixture": 1}, "fixture"))
+    ui = app.create_app()
+    original = ui.launch
+    captured = {}
+    @functools.wraps(original)
+    def capture(**kwargs):
+        inspect.signature(original).bind(**kwargs)
+        captured.update(kwargs)
+    monkeypatch.setattr(ui, "launch", capture)
+    app.launch_app(ui)
+    assert captured["server_name"] == "127.0.0.1"
+    assert captured["share"] is False
+    styling = app._presentation_options(app.gr.Blocks)
+    assert "css" in captured or "css" in styling
+    ui.close()

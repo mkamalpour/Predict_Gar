@@ -123,6 +123,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .log-box textarea { font-family: Consolas, monospace !important; font-size: 12px !important; line-height: 1.6 !important; }
 textarea, input { unicode-bidi: plaintext; }
 .gradio-container .plot-container { min-height: 220px; }
+.gradio-container .chatbot.md p, .gradio-container footer a, .gradio-container footer button { color: #475e66 !important; }
 .gradio-container .tabitem { padding-top: 18px; }
 @media(max-width: 600px) { .gradio-container { padding: 12px !important; } .pg-header { padding-top: 18px; } .pg-meta { line-height: 1.8; letter-spacing: .07em; } .tab-nav button { padding: 9px 11px !important; } }
 @media(prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
@@ -146,13 +147,30 @@ def app_theme():
     )
 
 
+def _presentation_options(callable_):
+    """Gradio 5 styles Blocks; Gradio 6 styles launch instead."""
+    parameters = inspect.signature(callable_).parameters
+    return {key: value for key, value in {"theme": app_theme(), "css": APP_CSS}.items()
+            if key in parameters}
+
+
+def launch_app(app, **overrides):
+    """Launch locally with only options supported by the installed Gradio."""
+    options = {"share": False, "server_name": "127.0.0.1", "server_port": 7861,
+               **_presentation_options(app.launch)}
+    if "footer_links" in inspect.signature(app.launch).parameters:
+        options["footer_links"] = []
+    options.update(overrides)
+    return app.launch(**options)
+
+
 def create_app():
 
     fetcher = Fetcher()
     cache = Cache(fetcher)
 
     def load_products():
-        return fetcher.discover_products()
+        return fetcher.discover_products(allow_network=False)
 
     initial_products, initial_source = load_products()
     product_names = (
@@ -176,7 +194,8 @@ def create_app():
     # External features labels for UI
 
     with gr.Blocks(
-        title="PredictGar | Commodity forecasting", analytics_enabled=False
+        title="PredictGar | Commodity forecasting", analytics_enabled=False,
+        **_presentation_options(gr.Blocks)
     ) as demo:
         # HEADER
         gr.HTML(
@@ -1691,7 +1710,7 @@ def create_app():
                     forecast_hybrid = gr.Checkbox(
                         value=True,
                         label="Blend with Simple Methods",
-                        info="Blends ML with moving average/trend for better accuracy",
+                        info="Blends ML with moving average/trend; compare backtests before using",
                     )
                     anomaly_threshold = gr.Slider(
                         value=2,
@@ -2878,11 +2897,4 @@ def create_app():
 
 if __name__ == "__main__":
     app = create_app()
-    app.launch(
-        theme=app_theme(),
-        css=APP_CSS,
-        share=False,
-        footer_links=[],
-        server_name="127.0.0.1",
-        server_port=7861,
-    )
+    launch_app(app)
