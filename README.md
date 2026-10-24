@@ -1,14 +1,18 @@
-# PredictGar
+# predictgar
 
-A local forecasting workbench for Iranian livestock and feed prices. Explore historical series, compare regression models, run walk-forward backtests, and export forecasts through a six-tab Gradio interface.
+Explore Iranian livestock and feed price history, compare forecasting models, and export predictions. Import a CSV or fetch available source data, then check a walk-forward backtest before using a forecast.
+
+## Try it first
+
+Open **Data & Charts** and upload a CSV with `date` and `price` columns. Train a small model in **Training**, inspect **Backtest**, then export from **Forecast**. The built-in product catalog contains names, not example price observations.
 
 ## Run locally
 
 Verified existing environments: Python 3.13.5 / Gradio 5.49.1 and Python 3.10.19 / Gradio 6.14.0. Use a compatible existing environment; `requirements.txt` records the base dependency versions. BeautifulSoup is needed only for live HTML discovery, not CSV workflows or the offline product catalog.
 
 ```powershell
-conda activate base  # Or activate another existing compatible environment.
-# Optional dependency setup; requires explicit permission and connectivity.
+conda activate base  # Or use your existing compatible environment.
+# Install dependencies if they are not already available in your environment.
 python -m pip install -r requirements.txt
 python app.py
 ```
@@ -56,7 +60,7 @@ Only load model packages you trust: joblib/pickle can execute code. New packages
 ## Checks
 
 ```powershell
-# Optional dependency setup; requires explicit permission and connectivity.
+# Install dependencies if they are not already available in your environment.
 python -m pip install pytest==9.1.1
 python -m pytest tests -q
 python -m pip check
